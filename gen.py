@@ -722,11 +722,15 @@ async def handle_health_check(request):
 
 def main():
     app = web.Application()
+    # মূল হেলথ চেক রাউট
     app.router.add_get('/', handle_health_check)
+    
+    # স্ল্যাশসহ বা স্ল্যাশ ছাড়া উভয় রাউটই হ্যান্ডেল করার জন্য
     app.router.add_get('/create', handle_create_account)
+    app.router.add_get('/create/', handle_create_account)
     app.router.add_post('/create', handle_create_account)
+    app.router.add_post('/create/', handle_create_account)
 
-    # Render uses the PORT environment variable to bind web application services
     port = int(os.environ.get("PORT", 10000))
     print(f"\033[1;32m[*] Starting Server on port {port}...\033[0m")
     web.run_app(app, host='0.0.0.0', port=port)
