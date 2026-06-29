@@ -449,71 +449,56 @@ async def xAuThSTarTuP(target_uid, token, timestamp, key, iv):
     elif len(uid_hex) == 7: headers = '000000000'
     return f"0115{headers}{uid_hex}{encrypted_timestamp}00000{encrypted_packet_length}{encrypted_packet}"
 
-async def guest_register(session, dev):
+async def guest_register(session, dev, proxy=None):
     password = generate_custom_password()
     payload = {"app_id": 100067, "client_type": 2, "password": password, "source": 2}
     body_json = json.dumps(payload, separators=(',', ':'))
     signature = hmac.new(KEY, body_json.encode(), hashlib.sha256).hexdigest()
     headers = {
-        "Authorization": f"Signature {signature}",
-        "Content-Type": "application/json; charset=utf-8",
-        "Accept": "application/json",
-        "Connection": "Keep-Alive",
-        "Host": "100067.connect.garena.com"
+        "Authorization": f"Signature {signature}", "Content-Type": "application/json; charset=utf-8",
+        "Accept": "application/json", "Connection": "Keep-Alive", "Host": "100067.connect.garena.com"
     }
-    async with session.post(REGISTER_URL, headers=headers, data=body_json) as resp:
+    async with session.post(REGISTER_URL, headers=headers, data=body_json, proxy=proxy) as resp:
         if resp.status != 200: raise Exception("Garena guest registration failed.")
         data = await resp.json()
         if data.get("code") != 0: raise Exception("Garena response indicated error.")
         return data['data']['uid'], password
 
-async def guest_token(session, uid, password, dev):
+async def guest_token(session, uid, password, dev, proxy=None):
     payload = {
-        "client_id": 100067,
-        "client_secret": HEX_KEY,
-        "client_type": 2,
-        "password": password,
-        "response_type": "token",
-        "uid": uid
+        "client_id": 100067, "client_secret": HEX_KEY, "client_type": 2,
+        "password": password, "response_type": "token", "uid": uid
     }
     body_json = json.dumps(payload, separators=(',', ':'))
     signature = hmac.new(KEY, body_json.encode(), hashlib.sha256).hexdigest()
     headers = {
-        "Authorization": f"Signature {signature}",
-        "Content-Type": "application/json; charset=utf-8",
-        "Accept": "application/json",
-        "Connection": "Keep-Alive",
-        "Host": "100067.connect.garena.com"
+        "Authorization": f"Signature {signature}", "Content-Type": "application/json; charset=utf-8",
+        "Accept": "application/json", "Connection": "Keep-Alive", "Host": "100067.connect.garena.com"
     }
-    async with session.post(TOKEN_URL, headers=headers, data=body_json) as resp:
+    async with session.post(TOKEN_URL, headers=headers, data=body_json, proxy=proxy) as resp:
         if resp.status != 200: raise Exception("Garena oauth token request failed.")
         data = await resp.json()
         if data.get("code") != 0: raise Exception("Garena token response error.")
         return data['data']['access_token'], data['data']['open_id']
 
-async def major_register(session, access_token, open_id, name, dev):
+async def major_register(session, access_token, open_id, name, dev, proxy=None):
     keystream = [0x30, 0x30, 0x30, 0x32, 0x30, 0x31, 0x37, 0x30, 0x30, 0x30, 0x30, 0x30, 0x32, 0x30, 0x31, 0x37,
                  0x30, 0x30, 0x30, 0x30, 0x30, 0x32, 0x30, 0x31, 0x37, 0x30, 0x30, 0x30, 0x30, 0x30, 0x32, 0x30]
     encoded_open_id = ""
     for i, ch in enumerate(open_id):
         encoded_open_id += chr(ord(ch) ^ keystream[i % len(keystream)])
     field14 = encoded_open_id.encode('latin1')
-    payload_fields = {
-        1: name, 2: access_token, 3: open_id, 5: 102000007,
-        6: 4, 7: 1, 13: 1, 14: field14, 15: LANG, 16: 1, 17: 1
-    }
+    payload_fields = {1: name, 2: access_token, 3: open_id, 5: 102000007, 6: 4, 7: 1, 13: 1, 14: field14, 15: LANG, 16: 1, 17: 1}
     proto_bytes = await CrEaTe_ProTo(payload_fields)
     encrypted_payload = E_AEs(bytes(proto_bytes).hex())
     headers = {
         "Accept-Encoding": "gzip", "Authorization": "Bearer", "Connection": "Keep-Alive",
         "Content-Type": "application/x-www-form-urlencoded", "Expect": "100-continue",
-        "Host": "loginbp.ggpolarbear.com", "ReleaseVersion": "OB54",  # OB54 এ পরিবর্তন করা হয়েছে
-        "X-GA": "v1 1", "X-Unity-Version": "2018.4."
+        "Host": "loginbp.ggpolarbear.com", "ReleaseVersion": "OB54", "X-GA": "v1 1", "X-Unity-Version": "2018.4."
     }
-    async with session.post(MAJOR_REGISTER_URL, headers=headers, data=encrypted_payload) as resp:
+    async with session.post(MAJOR_REGISTER_URL, headers=headers, data=encrypted_payload, proxy=proxy) as resp:
         if resp.status != 200: raise Exception("Polarbear major registration failed.")
         return True
-
 async def EncRypTMajoRLoGin(open_id, access_token, dev):
     major_login = MajorLogin()
     major_login.event_time = str(datetime.now())[:-7]
@@ -578,38 +563,36 @@ async def EncRypTMajoRLoGin(open_id, access_token, dev):
     cipher = AES.new(key, AES.MODE_CBC, iv)
     return cipher.encrypt(pad(serialized, AES.block_size))
 
-async def major_login_async(session, access_token, open_id, dev):
+async def major_login_async(session, access_token, open_id, dev, proxy=None):
     encrypted_payload = await EncRypTMajoRLoGin(open_id, access_token, dev)
     headers = {
         "Accept-Encoding": "gzip", "Authorization": "Bearer", "Connection": "Keep-Alive",
         "Content-Type": "application/x-www-form-urlencoded", "Expect": "100-continue",
-        "Host": "loginbp.ggpolarbear.com", "ReleaseVersion": "OB54",  # OB54 এ পরিবর্তন করা হয়েছে
-        "X-GA": "v1 1", "X-Unity-Version": "2018.4.11f1"
+        "Host": "loginbp.ggpolarbear.com", "ReleaseVersion": "OB54", "X-GA": "v1 1", "X-Unity-Version": "2018.4.11f1"
     }
-    async with session.post(MAJOR_LOGIN_URL, headers=headers, data=encrypted_payload) as resp:
+    async with session.post(MAJOR_LOGIN_URL, headers=headers, data=encrypted_payload, proxy=proxy) as resp:
         if resp.status != 200: raise Exception("Polarbear MajorLogin request failed.")
         content = await resp.read()
         res = MajorLoginRes()
         res.ParseFromString(content)
         return res
 
-async def get_login_data(session, base_url, payload, jwt_token, dev):
+async def get_login_data(session, base_url, payload, jwt_token, dev, proxy=None):
     url = f"{base_url}/GetLoginData"
     headers = {
         "Accept-Encoding": "gzip", "Authorization": f"Bearer {jwt_token}",
         "Connection": "Keep-Alive", "Content-Type": "application/x-www-form-urlencoded",
         "Expect": "100-continue", "Host": base_url.replace("https://", ""),
-        "ReleaseVersion": "OB54",  # OB54 এ পরিবর্তন করা হয়েছে
-        "X-GA": "v1 1", "X-Unity-Version": "2018.4.11f1"
+        "ReleaseVersion": "OB54", "X-GA": "v1 1", "X-Unity-Version": "2018.4.11f1"
     }
-    async with session.post(url, headers=headers, data=payload) as resp:
+    async with session.post(url, headers=headers, data=payload, proxy=proxy) as resp:
         if resp.status != 200: raise Exception("Polarbear GetLoginData request failed.")
         content = await resp.read()
         data = GetLoginData()
         data.ParseFromString(content)
         return data
 
-async def update_bio_async(session, jwt_token, bio_text, dev):
+async def update_bio_async(session, jwt_token, bio_text, dev, proxy=None):
     key = bytes([89,103,38,116,99,37,68,69,117,104,54,37,90,99,94,56])
     iv = bytes([54,111,121,90,68,114,50,50,69,51,121,99,104,106,77,37])
     proto = Data()
@@ -626,32 +609,25 @@ async def update_bio_async(session, jwt_token, bio_text, dev):
     encrypted = cipher.encrypt(padded)
     headers = {
         "Expect": "100-continue", "Authorization": f"Bearer {jwt_token}",
-        "X-Unity-Version": "2018.4.11f1", "X-GA": "v1 1", "ReleaseVersion": "OB54",  # OB54 এ পরিবর্তন করা হয়েছে
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Connection": "Keep-Alive", "Accept-Encoding": "gzip"
+        "X-Unity-Version": "2018.4.11f1", "X-GA": "v1 1", "ReleaseVersion": "OB54",
+        "Content-Type": "application/x-www-form-urlencoded", "Connection": "Keep-Alive", "Accept-Encoding": "gzip"
     }
     try:
-        async with session.post(UPDATE_BIO_URL, headers=headers, data=encrypted, timeout=10) as resp:
+        async with session.post(UPDATE_BIO_URL, headers=headers, data=encrypted, timeout=10, proxy=proxy) as resp:
             return resp.status == 200
     except:
         return False
 
-
-async def equip_emote_async(session, jwt_token, dev):
+async def equip_emote_async(session, jwt_token, dev, proxy=None):
     url = "https://clientbp.ggpolarbear.com/ChooseEmote"
     emote_data = bytes.fromhex("CAF683222A25C7BEFEB51F59544DB313")
     headers = {
-        "Expect": "100-continue", 
-        "Authorization": f"Bearer {jwt_token}",
-        "X-Unity-Version": "2018.4.11f1", 
-        "X-GA": "v1 1", 
-        "ReleaseVersion": "OB54",  # OB54 এ পরিবর্তন করা হয়েছে
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Connection": "Keep-Alive", 
-        "Accept-Encoding": "gzip"
+        "Expect": "100-continue", "Authorization": f"Bearer {jwt_token}",
+        "X-Unity-Version": "2018.4.11f1", "X-GA": "v1 1", "ReleaseVersion": "OB54",
+        "Content-Type": "application/x-www-form-urlencoded", "Connection": "Keep-Alive", "Accept-Encoding": "gzip"
     }
     try:
-        async with session.post(url, headers=headers, data=emote_data, timeout=10) as resp:
+        async with session.post(url, headers=headers, data=emote_data, timeout=10, proxy=proxy) as resp:
             return resp.status == 200
     except:
         return False
@@ -668,31 +644,29 @@ async def tcp_connection(ip, port, auth_token_hex):
     except:
         return False
 
-async def create_single_account_api(session, selected_format, base_name, selected_bio):
-    max_retries = 30  # লিমিট বাড়িয়ে ৩০ বার করা হলো
+async def create_single_account_api(session, selected_format, base_name, selected_bio, proxy=None):
+    max_retries = 30
     
     for attempt in range(max_retries):
         try:
-            # গ্যারেনা সার্ভারকে স্প্যামিং থেকে ধোঁকা দিতে ছোট একটি রেন্ডম ডিলে
             await asyncio.sleep(random.uniform(0.1, 0.5))
-            
             device = random.choice(DEVICE_PROFILES)
             
-            uid, password = await guest_register(session, device)
-            access_token, open_id = await guest_token(session, uid, password, device)
+            uid, password = await guest_register(session, device, proxy=proxy)
+            access_token, open_id = await guest_token(session, uid, password, device, proxy=proxy)
             full_name = generate_dynamic_name(base_name)
             
-            await major_register(session, access_token, open_id, full_name, device)
-            major_res = await major_login_async(session, access_token, open_id, device)
+            await major_register(session, access_token, open_id, full_name, device, proxy=proxy)
+            major_res = await major_login_async(session, access_token, open_id, device, proxy=proxy)
             
             jwt_token = major_res.token
             account_id = major_res.account_uid
             payload = await EncRypTMajoRLoGin(open_id, access_token, device)
-            login_data = await get_login_data(session, major_res.url, payload, jwt_token, device)
+            login_data = await get_login_data(session, major_res.url, payload, jwt_token, device, proxy=proxy)
             
             await asyncio.gather(
-                update_bio_async(session, jwt_token, selected_bio, device),
-                equip_emote_async(session, jwt_token, device)
+                update_bio_async(session, jwt_token, selected_bio, device, proxy=proxy),
+                equip_emote_async(session, jwt_token, device, proxy=proxy)
             )
             
             auth_token_hex = await xAuThSTarTuP(int(account_id), jwt_token, int(major_res.timestamp), major_res.key, major_res.iv)
@@ -724,9 +698,8 @@ async def create_single_account_api(session, selected_format, base_name, selecte
         except Exception as e:
             print(f"\033[1;33m[*] Attempt {attempt + 1} failed: {str(e)} - Retrying...\033[0m")
             if attempt == max_retries - 1:
-                raise Exception(f"Failed after {max_retries} attempts. Server is highly unstable.")
-            await asyncio.sleep(1) # ফেইল করলে ১ সেকেন্ড অপেক্ষা করে আবার চেষ্টা করবে
-
+                raise Exception(f"Failed after {max_retries} attempts. Server/Proxy is unstable.")
+            await asyncio.sleep(1)
 # ==================== WEB API HANDLERS ====================
 
 async def handle_create_account(request):
@@ -756,9 +729,12 @@ async def handle_create_account(request):
                     selected_bio = b['content']
                     break
 
+        proxy = os.environ.get("BD_PROXY") or params.get("proxy")
+
         connector = aiohttp.TCPConnector(ssl=False)
         async with aiohttp.ClientSession(connector=connector) as session:
-            result = await create_single_account_api(session, selected_format, base_name, selected_bio)
+            # এখানে proxy=proxy যোগ করা হলো
+            result = await create_single_account_api(session, selected_format, base_name, selected_bio, proxy=proxy)
             return web.json_response(result)
             
     except Exception as e:
